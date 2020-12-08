@@ -1,0 +1,21 @@
+package main
+
+import (
+	"github.com/pulumi/pulumi-azure/sdk/v3/go/azure/network"
+	"github.com/pulumi/pulumi/sdk/v2/go/pulumi"
+)
+
+func main() {
+	pulumi.Run(func(ctx *pulumi.Context) error {
+		subnetNetwork, err := network.LookupSubnet(ctx, &network.LookupSubnetArgs{
+			Name:               "clusternodes",
+			ResourceGroupName:  "npeccpdevwu2RgGolduck",
+			VirtualNetworkName: "npeccpdevwu2RgGolduckVPC",
+		})
+		if err != nil {
+			return err
+		}
+		ctx.Export("subnetId", pulumi.String(subnetNetwork.Id))
+		return nil
+	})
+}

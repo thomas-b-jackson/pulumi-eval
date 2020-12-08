@@ -1,0 +1,9 @@
+data "azurerm_subnet" "subnet_network" {
+  name                   = "clusternodes"
+  resource_group_name    = "npeccpdevwu2RgGolduck"
+  virtual_network_name   = "npeccpdevwu2RgGolduckVPC"
+}
+
+output "subnet_id" {
+  value = data.azurerm_subnet.subnet_network.id
+}

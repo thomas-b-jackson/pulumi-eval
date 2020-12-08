@@ -1,0 +1,108 @@
+locals {
+    resource_group_name = "npeccpdevwu2RgGolduck"
+    user_data = "#!/bin/bash echo \"Hello, World!\" > index.html nohup python -m SimpleHTTPServer 80 &"
+    node_name = "tomj-pu-test"
+    location = "westus2"
+}
+# -----------------------------------------------------------------------------
+# Fetch golduck image to use for controlplane
+# -----------------------------------------------------------------------------
+data "azurerm_image" "controlplane_image" {
+  name                = "golduck--1.17.3--1601589591--0.0.1"
+  resource_group_name = local.resource_group_name
+}
+
+data "azurerm_subnet" "subnet_network" {
+  name                   = "clusternodes"
+  resource_group_name    = local.resource_group_name
+  virtual_network_name   = "npeccpdevwu2RgGolduckVPC"
+}
+
+# -----------------------------------------------------------------------------
+# Create Security Group for controlplane nodes
+# -----------------------------------------------------------------------------
+resource "azurerm_network_security_group" "security_group_cp" {
+    name                = format("%s-cp-NSG", local.node_name)
+    location            = local.location
+    resource_group_name = local.resource_group_name
+}
+
+# -----------------------------------------------------------------------------
+# Create Kubernetes control plane security rules
+# -----------------------------------------------------------------------------
+resource "azurerm_network_security_rule" "cp_rule_ssh" {
+  name                        = "ssh-temp"
+  direction                   = "Inbound"
+  access                      = "Allow"
+  priority                    = 100
+  source_address_prefix       = "97.113.72.70"
+  source_port_range           = "*"
+  destination_address_prefix  = "*"
+  destination_port_range      = "22"
+  protocol                    = "TCP"
+  resource_group_name         = local.resource_group_name
+  network_security_group_name = azurerm_network_security_group.security_group_cp.name
+}
+
+# -----------------------------------------------------------------------------
+# Create Network Interface (internal IP only)
+# -----------------------------------------------------------------------------
+resource "azurerm_network_interface" "nic" {
+#  lifecycle {
+#    create_before_destroy = true
+#  }
+
+  name                      = format("%s-NIC", local.node_name)
+  location                  = local.location
+  resource_group_name       = local.resource_group_name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = data.azurerm_subnet.subnet_network.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Associate NIC with security group
+# -----------------------------------------------------------------------------
+resource "azurerm_network_interface_security_group_association" "nic_2_sg" {
+  network_interface_id      = azurerm_network_interface.nic.id
+  network_security_group_id = azurerm_network_security_group.security_group_cp.id
+}
+
+# -----------------------------------------------------------------------------
+# Create and initialize controlplane machine
+# -----------------------------------------------------------------------------
+resource "azurerm_linux_virtual_machine" "cp_machine" {
+
+  name                     = local.node_name
+  location                 = local.location
+  resource_group_name      = local.resource_group_name
+  network_interface_ids    = [azurerm_network_interface.nic.id]
+  size                     = "Standard_D2s_v3"
+
+  os_disk {
+    name                 = format("%s-disk", local.node_name)
+    caching              = "ReadWrite"
+    storage_account_type = "Premium_LRS"
+    disk_size_gb         = 150
+  }
+
+  source_image_id          = data.azurerm_image.controlplane_image.id
+  computer_name            = local.node_name
+  admin_username           = "tomj"
+  custom_data              = base64encode(local.user_data)
+
+  plan {
+    name      = "stable"
+    product   = "flatcar-container-linux-free"
+    publisher = "kinvolk"
+  }
+        
+#   admin_ssh_key {
+#     username   = "tomj"
+#     public_key = "k8s-nginx-poc-key"
+#   }
+
+}

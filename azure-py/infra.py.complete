@@ -1,0 +1,39 @@
+import pulumi
+import pulumi_azure as azure
+
+virtual_network = azure.network.VirtualNetwork("exampleVirtualNetwork",
+    address_spaces=["10.0.0.0/16"],
+    location="westus2",
+    resource_group_name="npeccpdevwu2RgGolduck")
+
+subnet_network = azure.network.get_subnet(name="clusternodes",
+    resource_group_name="npeccpdevwu2RgGolduck",
+    virtual_network_name="npeccpdevwu2RgGolduckVPC")
+
+network_interface = azure.network.NetworkInterface("exampleNetworkInterface",
+    location="westus2",
+    resource_group_name="npeccpdevwu2RgGolduck",
+    ip_configurations=[{
+        "name": "internal",
+        "subnet_id": subnet_network.id,
+        "privateIpAddressAllocation": "Dynamic",
+    }])
+
+linux_virtual_machine = azure.compute.LinuxVirtualMachine("exampleLinuxVirtualMachine",
+    resource_group_name="npeccpdevwu2RgGolduck",
+    location="westus2",
+    size="Standard_F2",
+    admin_username="adminuser",
+    disable_password_authentication=False,
+    admin_password="x8NL6w86jeBt",
+    network_interface_ids=[network_interface.id],
+    os_disk={
+        "caching": "ReadWrite",
+        "storage_account_type": "Standard_LRS",
+    },
+    source_image_reference={
+        "publisher": "Canonical",
+        "offer": "UbuntuServer",
+        "sku": "16.04-LTS",
+        "version": "latest",
+    })
